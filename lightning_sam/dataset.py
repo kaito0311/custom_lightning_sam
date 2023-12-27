@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import torchvision.transforms as transforms
 from pycocotools.coco import COCO
-from segment_anything.utils.transforms import ResizeLongestSide
+from mobile_sam.utils.transforms import ResizeLongestSide
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 
