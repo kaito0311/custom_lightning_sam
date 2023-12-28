@@ -86,7 +86,7 @@ class MaskSegmentDataset(Dataset):
         row_start = np.random.randint(0, height - int(height * ratio_height))
         row_end = min(row_start + occ_height, height)
 
-        col_start = np.random.randint(0, width - int(height * ratio_width))
+        col_start = np.random.randint(0, width - int(width * ratio_width))
         col_end = min(col_start + occ_width, width)
 
         occ_width = col_end - col_start 
@@ -134,14 +134,14 @@ class MaskSegmentDataset(Dataset):
         image = cv2.imread(os.path.join(self.image_dir, self.list_image[index]))
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-        masks, image_augment = self.augment_occlusion(image)
+        image_augment, masks = self.augment_occlusion(image)
         image_augment = np.array(image_augment, np.uint8)
-        masks = [masks[:, :, 0]]
+        masks = [np.array(masks[:, :, 0] * 1.0, dtype= np.float32)]
         if self.transform: 
-            image_augment, mask = self.transform(image_augment, masks)
+            image_augment, masks = self.transform(image_augment, masks)
         masks = np.stack(masks, axis=0)
-        
-        return image_augment, mask 
+
+        return image_augment, torch.tensor(masks).float() 
     
     def __len__(self):
         return len(self.list_image)
@@ -211,13 +211,13 @@ def load_datasets(cfg, img_size):
 def load_custom_datasets(cfg, img_size): 
     transform = ResizeAndPad(img_size)
     train = MaskSegmentDataset(
-        image_dir= "/home/data2/tanminh/Train_SAM/lightning-sam/lightning_sam/datasets/val2017",
-        path_occlusion_object= "/home/data2/tanminh/Train_SAM/lightning-sam/lightning_sam/datasets/occlusion_dir",
+        image_dir= "/data/disk2/tanminh/Evaluate_FIQA_EVR_old/data/processed_CPLFW/images",
+        path_occlusion_object= "datasets/occlusion_dir",
         transform= transform
     )
     val = MaskSegmentDataset(
-        image_dir= "/home/data2/tanminh/Train_SAM/lightning-sam/lightning_sam/datasets/val2017",
-        path_occlusion_object= "/home/data2/tanminh/Train_SAM/lightning-sam/lightning_sam/datasets/occlusion_dir",
+        image_dir= "/data/disk2/tanminh/Evaluate_FIQA_EVR_old/data/processed_CPLFW/images",
+        path_occlusion_object= "datasets/occlusion_dir",
         transform= transform
     )
 

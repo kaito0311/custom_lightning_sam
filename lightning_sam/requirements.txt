@@ -5,5 +5,5 @@ pycocotools
 numpy
 opencv_python
 Pillow
-torch
-torchvision
+# torch
+# torchvision

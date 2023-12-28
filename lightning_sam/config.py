@@ -1,11 +1,11 @@
 from box import Box
 
 config = {
-    "num_devices": 0,
-    "batch_size": 2,
+    "num_devices": 1,
+    "batch_size": 16,
     "num_workers": 4,
     "num_epochs": 20,
-    "eval_interval": 2,
+    "eval_interval": 250,
     "out_dir": "out/training",
     "opt": {
         "learning_rate": 8e-4,

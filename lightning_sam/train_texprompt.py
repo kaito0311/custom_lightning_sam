@@ -20,18 +20,19 @@ from utils import calc_iou
 
 torch.set_float32_matmul_precision('high')
 
-embed_text = torch.from_numpy(np.load("/home/data2/tanminh/Train_SAM/lightning-sam/lightning_sam/weights/feature_text.npy"))
+embed_text = torch.from_numpy(np.load("weights/feature_text.npy"))
 
-def validate(fabric: L.Fabric, model: Model, val_dataloader: DataLoader, epoch: int = 0):
+def validate(fabric: L.Fabric, model: Model, val_dataloader: DataLoader, step: int = 0):
     model.eval()
     ious = AverageMeter()
     f1_scores = AverageMeter()
-
     with torch.no_grad():
         for iter, data in enumerate(val_dataloader):
-            images, bboxes, gt_masks = data
+            if iter > 2:
+                break 
+            images, gt_masks = data
             num_images = images.size(0)
-            pred_masks, _ = model(images, bboxes, embed_text)
+            pred_masks, _ = model(images, None, embed_text)
             for pred_mask, gt_mask in zip(pred_masks, gt_masks):
                 batch_stats = smp.metrics.get_stats(
                     pred_mask,
@@ -44,15 +45,15 @@ def validate(fabric: L.Fabric, model: Model, val_dataloader: DataLoader, epoch: 
                 ious.update(batch_iou, num_images)
                 f1_scores.update(batch_f1, num_images)
             fabric.print(
-                f'Val: [{epoch}] - [{iter}/{len(val_dataloader)}]: Mean IoU: [{ious.avg:.4f}] -- Mean F1: [{f1_scores.avg:.4f}]'
+                f'Val: [{step}] - [{iter}/{len(val_dataloader)}]: Mean IoU: [{ious.avg:.4f}] -- Mean F1: [{f1_scores.avg:.4f}]'
             )
 
-    fabric.print(f'Validation [{epoch}]: Mean IoU: [{ious.avg:.4f}] -- Mean F1: [{f1_scores.avg:.4f}]')
+    fabric.print(f'Validation [{step}]: Mean IoU: [{ious.avg:.4f}] -- Mean F1: [{f1_scores.avg:.4f}]')
 
     fabric.print(f"Saving checkpoint to {cfg.out_dir}")
     state_dict = model.model.state_dict()
     if fabric.global_rank == 0:
-        torch.save(state_dict, os.path.join(cfg.out_dir, f"epoch-{epoch:06d}-f1{f1_scores.avg:.2f}-ckpt.pth"))
+        torch.save(state_dict, os.path.join(cfg.out_dir, f"step-{step:06d}-f1{f1_scores.avg:.2f}-ckpt.pth"))
     model.train()
 
 
@@ -69,7 +70,9 @@ def train_sam(
 
     focal_loss = FocalLoss()
     dice_loss = DiceLoss()
-
+    global embed_text
+    embed_text
+    step = 0 
     for epoch in range(1, cfg.num_epochs):
         batch_time = AverageMeter()
         data_time = AverageMeter()
@@ -78,15 +81,20 @@ def train_sam(
         iou_losses = AverageMeter()
         total_losses = AverageMeter()
         end = time.time()
-        validated = False
+
 
         for iter, data in enumerate(train_dataloader):
-            if epoch > 1 and epoch % cfg.evartedl_interval == 0 and not validated:
-                validate(fabric, model, val_dataloader, epoch)
-                validated = True
+            if step > 1 and step % cfg.eval_interval == 0:
+                validate(fabric, model, val_dataloader, step)
+            
+
             print("[INFO] Training")
+            step += 1 
             data_time.update(time.time() - end)
             images, gt_masks = data
+            images = images.to(fabric.device)
+
+            # gt_masks = gt_masks.to(fabric.device)
             batch_size = images.size(0)
             pred_masks, iou_predictions = model(images, None, embed_text)
             num_masks = sum(len(pred_mask) for pred_mask in pred_masks)
@@ -140,8 +148,8 @@ def configure_opt(cfg: Box, model: Model):
 
 
 def main(cfg: Box) -> None:
-    fabric = L.Fabric(accelerator="cpu",
-                    #   devices=cfg.num_devices,
+    fabric = L.Fabric(accelerator="auto",
+                      devices=cfg.num_devices,
                       strategy="auto",
                       loggers=[TensorBoardLogger(cfg.out_dir, name="lightning-sam")])
     fabric.launch()
@@ -150,9 +158,12 @@ def main(cfg: Box) -> None:
     if fabric.global_rank == 0:
         os.makedirs(cfg.out_dir, exist_ok=True)
 
-    with fabric.device:
-        model = Model(cfg)
-        model.setup()
+    print(type(fabric.device))
+    model = Model(cfg)
+    model.setup()
+
+    global embed_text 
+    embed_text = embed_text.to(fabric.device)
 
     train_data, val_data = load_custom_datasets(cfg, model.model.image_encoder.img_size)
     train_data = fabric._setup_dataloader(train_data)
@@ -162,8 +173,9 @@ def main(cfg: Box) -> None:
     model, optimizer = fabric.setup(model, optimizer)
 
     train_sam(cfg, fabric, model, optimizer, scheduler, train_data, val_data)
-    validate(fabric, model, val_data, epoch=0)
+    validate(fabric, model, val_data, step=0)
 
 
 if __name__ == "__main__":
     main(cfg)
+
