@@ -86,11 +86,11 @@ def build_sam_vit_t(checkpoint=None):
         )
 
     mobile_sam.eval()
-    # if checkpoint is not None:
-    #     with open(checkpoint, "rb") as f:
-    #         state_dict = torch.load(f)
-    #     mobile_sam.load_state_dict(state_dict)
-    torch.save(mobile_sam.state_dict(), "new_state_dict.pth")
+    if checkpoint is not None:
+        with open(checkpoint, "rb") as f:
+            state_dict = torch.load(f)
+        mobile_sam.load_state_dict(state_dict)
+    # torch.save(mobile_sam.state_dict(), "new_state_dict.pth")
     return mobile_sam
 
 

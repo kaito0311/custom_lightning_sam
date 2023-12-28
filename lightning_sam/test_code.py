@@ -3,6 +3,20 @@ from transformers import CLIPProcessor, CLIPModel
 from tqdm import tqdm 
 
 
+
+
+
+from dataset import load_custom_datasets 
+from config import cfg
+
+
+tran_loader, val_loader = load_custom_datasets(cfg, 1024)
+
+for idx, (batch_images, masks) in enumerate(tran_loader):
+    print(batch_images.shape)
+    print(masks.shape)
+
+exit()
 new_state_dict = torch.load("./new_state_dict.pth", map_location="cpu")
 original_state_dict =torch.load("weights/mobile_sam.pt", map_location="cpu")
 

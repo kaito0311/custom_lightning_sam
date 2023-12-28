@@ -28,10 +28,10 @@ class Model(nn.Module):
         image_embeddings = self.model.image_encoder(images)
         pred_masks = []
         ious = []
-        for embedding, bbox in zip(image_embeddings, bboxes):
+        for embedding in image_embeddings:
             sparse_embeddings, dense_embeddings = self.model.prompt_encoder(
                 points=None,
-                boxes=bbox,
+                boxes=None,
                 masks=None,
                 texts= texts
             )

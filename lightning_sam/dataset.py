@@ -1,4 +1,5 @@
 import os
+import random 
 
 import cv2
 import numpy as np
@@ -8,6 +9,7 @@ from pycocotools.coco import COCO
 from mobile_sam.utils.transforms import ResizeLongestSide
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
+from PIL import Image 
 
 
 class COCODataset(Dataset):
@@ -50,10 +52,106 @@ class COCODataset(Dataset):
         return image, torch.tensor(bboxes), torch.tensor(masks).float()
 
 
+
+class MaskSegmentDataset(Dataset): 
+    def __init__(self, image_dir, path_occlusion_object, transform) -> None:
+        super().__init__()
+        self.image_dir = image_dir
+        self.path_occlusion_object = path_occlusion_object 
+        self.list_path_occlusion_object = os.listdir(path_occlusion_object) 
+        self.list_image = os.listdir(image_dir)
+        self.transform = transform
+
+
+    def mask_random(self, image, occlusion_object=None, ratio_height=-1):
+        if ratio_height is None:
+            ratio_height = np.clip(np.random.rand(), 0.3, 0.65)
+
+        # if ratio_width is None:
+        #     ratio_width = np.clip(np.random.rand(), 0.1, 0.5)
+        ratio_width = ratio_height
+
+        image = np.copy(image)
+
+        height, width = image.shape[0], image.shape[1]
+
+        if ratio_height == -1:
+            occ_height, occ_width = image.shape[:2]
+            occ_height = min(height, occ_height)
+            occ_width = min(width, occ_width)
+        else:
+            occ_height, occ_width = int(
+                height * ratio_height), int(width * ratio_width)
+
+        row_start = np.random.randint(0, height - int(height * ratio_height))
+        row_end = min(row_start + occ_height, height)
+
+        col_start = np.random.randint(0, width - int(height * ratio_width))
+        col_end = min(col_start + occ_width, width)
+
+        occ_width = col_end - col_start 
+        occ_height = row_end - row_start 
+
+
+        if occlusion_object is not None:
+
+            occlusion_object = cv2.resize(
+                occlusion_object, (occ_width, occ_height))
+            occlu_image, mask = occlusion_object[:,
+                                                 :, :3], occlusion_object[:, :, 3:]
+            occlu_image = occlu_image[:, :, ::-1]
+
+            image[row_start:row_end, col_start:col_end, :] = occlu_image * \
+                mask + image[row_start:row_end,
+                             col_start:col_end, :] * (1 - mask)
+        else:
+            occlusion_noise = np.random.rand(occ_height, occ_width, 3)
+            occlusion_noise = np.array(occlusion_noise * 255, dtype=np.uint8)
+            image[row_start:row_end, col_start:col_end, :] = occlusion_noise
+
+        return image
+
+    def augment_occlusion(self, image):
+
+        # for 4 channels npy
+        mask_image = np.load(os.path.join(
+            self.path_occlusion_object, random.choice(self.list_path_occlusion_object)))
+
+        # for image
+        # mask_image = cv2.imread(os.path.join(self.path_occlusion_object, random.choice(self.list_path_occlusion_object)))
+        # mask_image = cv2.cvtColor(mask_image, cv2.COLOR_BGR2RGB)
+
+        image_augment = self.mask_random(image, mask_image, ratio_height=None)
+        mask = np.where(np.array(image) != np.array(image_augment), 1, 0)
+        mask = mask
+        
+        image_augment = np.array(image_augment)
+        mask = np.array(mask)
+        
+        return image_augment, mask
+    
+    def __getitem__(self, index):
+        image = cv2.imread(os.path.join(self.image_dir, self.list_image[index]))
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+        masks, image_augment = self.augment_occlusion(image)
+        image_augment = np.array(image_augment, np.uint8)
+        masks = [masks[:, :, 0]]
+        if self.transform: 
+            image_augment, mask = self.transform(image_augment, masks)
+        masks = np.stack(masks, axis=0)
+        
+        return image_augment, mask 
+    
+    def __len__(self):
+        return len(self.list_image)
+     
+
+
 def collate_fn(batch):
-    images, bboxes, masks = zip(*batch)
+    images, bboxes = zip(*batch)
     images = torch.stack(images)
-    return images, bboxes, masks
+    return images, bboxes
 
 
 class ResizeAndPad:
@@ -63,7 +161,7 @@ class ResizeAndPad:
         self.transform = ResizeLongestSide(target_size)
         self.to_tensor = transforms.ToTensor()
 
-    def __call__(self, image, masks, bboxes):
+    def __call__(self, image, masks, bboxes= None):
         # Resize image and masks
         og_h, og_w, _ = image.shape
         image = self.transform.apply_image(image)
@@ -80,11 +178,14 @@ class ResizeAndPad:
         image = transforms.Pad(padding)(image)
         masks = [transforms.Pad(padding)(mask) for mask in masks]
 
-        # Adjust bounding boxes
-        bboxes = self.transform.apply_boxes(bboxes, (og_h, og_w))
-        bboxes = [[bbox[0] + pad_w, bbox[1] + pad_h, bbox[2] + pad_w, bbox[3] + pad_h] for bbox in bboxes]
+        if bboxes is not None:
+            # Adjust bounding boxes
+            bboxes = self.transform.apply_boxes(bboxes, (og_h, og_w))
+            bboxes = [[bbox[0] + pad_w, bbox[1] + pad_h, bbox[2] + pad_w, bbox[3] + pad_h] for bbox in bboxes]
 
-        return image, masks, bboxes
+            return image, masks, bboxes
+        else:
+            return image, masks
 
 
 def load_datasets(cfg, img_size):
@@ -105,4 +206,27 @@ def load_datasets(cfg, img_size):
                                 shuffle=True,
                                 num_workers=cfg.num_workers,
                                 collate_fn=collate_fn)
+    return train_dataloader, val_dataloader
+
+def load_custom_datasets(cfg, img_size): 
+    transform = ResizeAndPad(img_size)
+    train = MaskSegmentDataset(
+        image_dir= "/home/data2/tanminh/Train_SAM/lightning-sam/lightning_sam/datasets/val2017",
+        path_occlusion_object= "/home/data2/tanminh/Train_SAM/lightning-sam/lightning_sam/datasets/occlusion_dir",
+        transform= transform
+    )
+    val = MaskSegmentDataset(
+        image_dir= "/home/data2/tanminh/Train_SAM/lightning-sam/lightning_sam/datasets/val2017",
+        path_occlusion_object= "/home/data2/tanminh/Train_SAM/lightning-sam/lightning_sam/datasets/occlusion_dir",
+        transform= transform
+    )
+
+    train_dataloader = DataLoader(train,
+                                  batch_size=cfg.batch_size,
+                                  shuffle=True,
+                                  num_workers=cfg.num_workers)
+    val_dataloader = DataLoader(val,
+                                batch_size=cfg.batch_size,
+                                shuffle=True,
+                                num_workers=cfg.num_workers)
     return train_dataloader, val_dataloader

@@ -16,10 +16,10 @@ config = {
     },
     "model": {
         "type": 'vit_t',
-        "checkpoint": "weights/mobile_sam.pt",
+        "checkpoint": "weights/mobile_sam_add_text.pt",
         "freeze": {
             "image_encoder": True,
-            "prompt_encoder": True,
+            "prompt_encoder": False,
             "mask_decoder": False,
         },
     },
