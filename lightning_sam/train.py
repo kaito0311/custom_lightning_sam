@@ -1,6 +1,7 @@
 import os
 import time
 
+import numpy as np
 import lightning as L
 import segmentation_models_pytorch as smp
 import torch
@@ -19,6 +20,7 @@ from utils import calc_iou
 
 torch.set_float32_matmul_precision('high')
 
+embed_text = torch.from_numpy(np.load("/home/data2/tanminh/Train_SAM/lightning-sam/lightning_sam/weights/feature_text.npy"))
 
 def validate(fabric: L.Fabric, model: Model, val_dataloader: DataLoader, epoch: int = 0):
     model.eval()
@@ -29,7 +31,7 @@ def validate(fabric: L.Fabric, model: Model, val_dataloader: DataLoader, epoch: 
         for iter, data in enumerate(val_dataloader):
             images, bboxes, gt_masks = data
             num_images = images.size(0)
-            pred_masks, _ = model(images, bboxes)
+            pred_masks, _ = model(images, bboxes, embed_text)
             for pred_mask, gt_mask in zip(pred_masks, gt_masks):
                 batch_stats = smp.metrics.get_stats(
                     pred_mask,
@@ -82,11 +84,11 @@ def train_sam(
             if epoch > 1 and epoch % cfg.eval_interval == 0 and not validated:
                 validate(fabric, model, val_dataloader, epoch)
                 validated = True
-
+            print("[INFO] Training")
             data_time.update(time.time() - end)
             images, bboxes, gt_masks = data
             batch_size = images.size(0)
-            pred_masks, iou_predictions = model(images, bboxes)
+            pred_masks, iou_predictions = model(images, bboxes, embed_text)
             num_masks = sum(len(pred_mask) for pred_mask in pred_masks)
             loss_focal = torch.tensor(0., device=fabric.device)
             loss_dice = torch.tensor(0., device=fabric.device)
@@ -109,7 +111,7 @@ def train_sam(
             dice_losses.update(loss_dice.item(), batch_size)
             iou_losses.update(loss_iou.item(), batch_size)
             total_losses.update(loss_total.item(), batch_size)
-
+            print("Done 1")
             fabric.print(f'Epoch: [{epoch}][{iter+1}/{len(train_dataloader)}]'
                          f' | Time [{batch_time.val:.3f}s ({batch_time.avg:.3f}s)]'
                          f' | Data [{data_time.val:.3f}s ({data_time.avg:.3f}s)]'
@@ -138,8 +140,8 @@ def configure_opt(cfg: Box, model: Model):
 
 
 def main(cfg: Box) -> None:
-    fabric = L.Fabric(accelerator="auto",
-                      devices=cfg.num_devices,
+    fabric = L.Fabric(accelerator="cpu",
+                    #   devices=cfg.num_devices,
                       strategy="auto",
                       loggers=[TensorBoardLogger(cfg.out_dir, name="lightning-sam")])
     fabric.launch()

@@ -23,7 +23,7 @@ class Model(nn.Module):
             for param in self.model.mask_decoder.parameters():
                 param.requires_grad = False
 
-    def forward(self, images, bboxes):
+    def forward(self, images, bboxes, texts):
         _, _, H, W = images.shape
         image_embeddings = self.model.image_encoder(images)
         pred_masks = []
@@ -33,6 +33,7 @@ class Model(nn.Module):
                 points=None,
                 boxes=bbox,
                 masks=None,
+                texts= texts
             )
 
             low_res_masks, iou_predictions = self.model.mask_decoder(

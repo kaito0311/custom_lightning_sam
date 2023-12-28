@@ -2,7 +2,7 @@ from box import Box
 
 config = {
     "num_devices": 0,
-    "batch_size": 12,
+    "batch_size": 2,
     "num_workers": 4,
     "num_epochs": 20,
     "eval_interval": 2,
