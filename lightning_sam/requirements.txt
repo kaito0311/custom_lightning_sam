@@ -1,9 +1,0 @@
-lightning
-segmentation-models-pytorch
-python-box
-pycocotools
-numpy
-opencv_python
-Pillow
-# torch
-# torchvision

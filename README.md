@@ -1,5 +1,3 @@
-# Custom from original https://github.com/luca-medeiros/lightning-sam/tree/main
-
 # Lightning Segment-Anything Model
 
 This library allows you to fine-tune the powerful Segment-Anything model from MetaAI for your custom COCO-format datasets. The library is built on top of Lightning AI's Fabric framework, providing an efficient and easy-to-use implementation for achieving state-of-the-art instance segmentation results.

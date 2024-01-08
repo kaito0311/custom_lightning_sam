@@ -2,10 +2,10 @@ from box import Box
 
 config = {
     "num_devices": 1,
-    "batch_size": 16,
+    "batch_size": 12,
     "num_workers": 4,
     "num_epochs": 20,
-    "eval_interval": 250,
+    "eval_interval": 200,
     "out_dir": "out/training",
     "opt": {
         "learning_rate": 8e-4,
@@ -16,21 +16,21 @@ config = {
     },
     "model": {
         "type": 'vit_t',
-        "checkpoint": "weights/mobile_sam_add_text.pt",
+        "checkpoint": "SourceMobileSAM/weights/mobile_sam.pt",
         "freeze": {
             "image_encoder": True,
-            "prompt_encoder": False,
+            "prompt_encoder": True,
             "mask_decoder": False,
         },
     },
     "dataset": {
         "train": {
-            "root_dir": "datasets/val2017",
-            "annotation_file": "datasets/annotations/instances_val2017.json"
+            "root_dir": "/coco/coco2017/train2017",
+            "annotation_file": "/coco/coco2017/annotations/instances_train2017.json"
         },
         "val": {
-            "root_dir": "datasets/val2017",
-            "annotation_file": "datasets/annotations/instances_val2017.json"
+            "root_dir": "/coco/coco2017/val2017",
+            "annotation_file": "/coco/coco2017/annotations/instances_val2017.json"
         }
     }
 }

@@ -1,0 +1,1 @@
+training predict mask based on point mask -> Loss ?
