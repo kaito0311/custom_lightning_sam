@@ -4,5 +4,7 @@
 __py
 **/__pycache__/
 *.pt
+*.jpg
 
+lightning_sam/result_image/
 lightning_sam/SourceMobileSAM

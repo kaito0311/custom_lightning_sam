@@ -2,7 +2,7 @@ from box import Box
 
 config = {
     "num_devices": 1,
-    "batch_size": 12,
+    "batch_size": 2,
     "num_workers": 4,
     "num_epochs": 20,
     "eval_interval": 200,
@@ -16,7 +16,7 @@ config = {
     },
     "model": {
         "type": 'vit_t',
-        "checkpoint": "SourceMobileSAM/weights/mobile_sam.pt",
+        "checkpoint": "out/training/step-000400-ckpt.pth",
         "freeze": {
             "image_encoder": True,
             "prompt_encoder": True,

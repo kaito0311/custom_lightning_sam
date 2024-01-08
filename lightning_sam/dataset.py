@@ -1,5 +1,6 @@
 import os
 import random
+from typing import Any
 
 import cv2
 import numpy as np
@@ -134,6 +135,7 @@ class MaskSegmentDataset(Dataset):
         image = cv2.imread(os.path.join(
             self.root_dir, self.list_name_img[index]))
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        image = cv2.resize(image, (1024, 1024))
 
         image_augment, masks = self.augment_occlusion(image)
         image_augment = np.array(image_augment, np.uint8)
@@ -147,7 +149,24 @@ class MaskSegmentDataset(Dataset):
     def __len__(self):
         return len(self.list_name_img)
 
+class EvalDataset(Dataset):
+    def __init__(self, image_dir) -> None:
+        super().__init__()
+        self.image_dir = image_dir
+        self.list_image = os.listdir(image_dir) 
 
+    
+    def __getitem__(self, index: Any) -> Any:
+        image = cv2.imread(os.path.join(
+            self.image_dir, self.list_image[index]))
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        image = cv2.resize(image, (1024, 1024))
+
+        return image, None
+    
+    def __len__(self):
+        return len(self.list_image)
+    
 def collate_fn(batch):
     images, bboxes = zip(*batch)
     images = torch.stack(images)
